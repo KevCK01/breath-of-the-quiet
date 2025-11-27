@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Zelda: Breath of the Quiet</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fondamento&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-forest: #1a2e1a;
+            --accent-gold: #c9a227;
+            --accent-green: #4a7c4e;
+            --text-light: #e8e4d9;
+            --glass: rgba(26, 46, 26, 0.85);
+        }
+
+        body {
+            background: var(--bg-forest);
+            background-image: 
+                radial-gradient(ellipse at top, #2d4a2d 0%, transparent 50%),
+                radial-gradient(ellipse at bottom, #0f1f0f 0%, transparent 50%);
+            font-family: 'Fondamento', cursive;
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .header {
+            padding: 2rem;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            color: var(--accent-gold);
+            text-shadow: 
+                0 0 20px rgba(201, 162, 39, 0.4),
+                0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            color: var(--accent-green);
+            margin-top: 0.5rem;
+            opacity: 0.9;
+        }
+
+        .visualizer-container {
+            position: relative;
+            width: 90vw;
+            max-width: 1000px;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 
+                0 0 0 2px rgba(201, 162, 39, 0.3),
+                0 20px 60px rgba(0, 0, 0, 0.7),
+                inset 0 0 100px rgba(0, 0, 0, 0.3);
+        }
+
+        .visualizer-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            aspect-ratio: unset;
+            border-radius: 0;
+            z-index: 9999;
+        }
+
+        .video-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #mainVideo {
+            z-index: 1;
+            opacity: 1;
+            transition: opacity 0.6s ease-in-out;
+        }
+
+        #mainVideo.fading {
+            opacity: 0;
+        }
+
+        #smokeVideo {
+            z-index: 2;
+            mix-blend-mode: screen;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .visualizer-container.fullscreen .video-layer {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+        }
+
+        .visualizer-container.fullscreen {
+            cursor: none;
+        }
+
+        .controls {
+            margin-top: 2rem;
+            padding: 1.5rem 2rem;
+            background: var(--glass);
+            border-radius: 12px;
+            border: 1px solid rgba(201, 162, 39, 0.2);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .controls.fullscreen-controls {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .controls.fullscreen-controls:hover,
+        .controls.fullscreen-controls.visible {
+            opacity: 1;
+        }
+
+        .btn {
+            font-family: 'Fondamento', cursive;
+            font-size: 1rem;
+            padding: 0.8rem 1.5rem;
+            border: 2px solid var(--accent-gold);
+            background: transparent;
+            color: var(--accent-gold);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: var(--accent-gold);
+            color: var(--bg-forest);
+            box-shadow: 0 0 20px rgba(201, 162, 39, 0.4);
+        }
+
+        .btn.active {
+            background: var(--accent-gold);
+            color: var(--bg-forest);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .noise-meter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            padding: 1.5rem 2rem;
+            background: var(--glass);
+            border-radius: 12px;
+            border: 1px solid rgba(201, 162, 39, 0.15);
+        }
+
+        .meter-label {
+            font-size: 1rem;
+            color: var(--accent-green);
+        }
+
+        .meter-bar-container {
+            width: 300px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .meter-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, 
+                var(--accent-green) 0%, 
+                var(--accent-gold) 50%, 
+                #d45d5d 100%);
+            border-radius: 12px;
+            transition: width 0.1s ease-out;
+        }
+
+        .threshold-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: var(--text-light);
+            opacity: 0.6;
+        }
+
+        .state-indicator {
+            font-size: 1.3rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .state-indicator.quiet {
+            color: var(--accent-green);
+            text-shadow: 0 0 10px rgba(74, 124, 78, 0.5);
+        }
+
+        .state-indicator.loud {
+            color: #d45d5d;
+            text-shadow: 0 0 10px rgba(212, 93, 93, 0.5);
+        }
+
+        .status {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: rgba(232, 228, 217, 0.5);
+            text-align: center;
+        }
+
+        .status.active {
+            color: var(--accent-green);
+        }
+
+        .status.error {
+            color: #d45d5d;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 10;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(201, 162, 39, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .visualizer-container:hover .fullscreen-btn {
+            opacity: 1;
+        }
+
+        .visualizer-container.fullscreen .fullscreen-btn {
+            display: none;
+        }
+
+        .fullscreen-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--accent-gold);
+        }
+
+        .instructions {
+            margin-top: 1.5rem;
+            padding: 1rem 1.5rem;
+            background: rgba(74, 124, 78, 0.15);
+            border-radius: 8px;
+            border: 1px solid rgba(74, 124, 78, 0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .instructions p {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-light);
+            opacity: 0.85;
+        }
+
+        .mobile-hint {
+            display: none;
+        }
+
+        @media (pointer: coarse) {
+            .mobile-hint {
+                display: block;
+            }
+        }
+
+        .sensitivity-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem 1.5rem;
+            background: var(--glass);
+            border-radius: 8px;
+            border: 1px solid rgba(201, 162, 39, 0.15);
+        }
+
+        .sensitivity-control label {
+            font-size: 0.95rem;
+            color: var(--accent-gold);
+        }
+
+        .sensitivity-slider {
+            width: 200px;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .sensitivity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(201, 162, 39, 0.4);
+        }
+
+        .sensitivity-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(201, 162, 39, 0.4);
+        }
+
+        .sensitivity-value {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            opacity: 0.7;
+        }
+
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            body {
+                padding-bottom: 2rem;
+            }
+
+            .header {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.6rem;
+                letter-spacing: 0.05em;
+            }
+
+            .header .subtitle {
+                font-size: 0.95rem;
+            }
+
+            .visualizer-container {
+                width: 95vw;
+                border-radius: 8px;
+            }
+
+            .controls {
+                padding: 1rem;
+                width: 95vw;
+            }
+
+            .btn {
+                padding: 0.9rem 1.2rem;
+                font-size: 1rem;
+                min-height: 48px; /* Touch-friendly */
+                touch-action: manipulation;
+            }
+
+            .noise-meter {
+                width: 95vw;
+                padding: 1rem;
+            }
+
+            .meter-bar-container {
+                width: 100%;
+                max-width: 280px;
+                height: 28px;
+            }
+
+            .state-indicator {
+                font-size: 1.1rem;
+            }
+
+            .sensitivity-control {
+                width: 95vw;
+            }
+
+            .sensitivity-slider {
+                width: 100%;
+                max-width: 250px;
+                height: 12px;
+                touch-action: manipulation;
+            }
+
+            .sensitivity-slider::-webkit-slider-thumb {
+                width: 28px;
+                height: 28px;
+            }
+
+            .sensitivity-slider::-moz-range-thumb {
+                width: 28px;
+                height: 28px;
+            }
+
+            .instructions {
+                margin: 1rem;
+                width: 90vw;
+            }
+
+            .instructions p {
+                font-size: 0.95rem;
+            }
+
+            /* Always show fullscreen button on touch devices */
+            .fullscreen-btn {
+                opacity: 0.8;
+                padding: 0.7rem;
+            }
+
+            .fullscreen-btn svg {
+                width: 28px;
+                height: 28px;
+            }
+        }
+
+        /* Small phones */
+        @media (max-width: 380px) {
+            .header h1 {
+                font-size: 1.3rem;
+            }
+
+            .btn {
+                padding: 0.8rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .controls {
+                gap: 0.5rem;
+            }
+        }
+
+        /* Landscape mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .header {
+                padding: 0.5rem;
+            }
+
+            .header h1 {
+                font-size: 1.2rem;
+            }
+
+            .header .subtitle {
+                display: none;
+            }
+
+            .visualizer-container {
+                width: 60vw;
+                max-width: none;
+            }
+
+            .controls, .noise-meter, .sensitivity-control, .instructions {
+                display: none;
+            }
+
+            /* Show minimal controls in landscape */
+            .controls {
+                display: flex;
+                position: fixed;
+                bottom: 0.5rem;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 0.5rem;
+                opacity: 0.7;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Zelda: Breath of the Quiet</h1>
+        <p class="subtitle">Be still and Link will appear...</p>
+    </div>
+
+    <div class="visualizer-container" id="visualizerContainer">
+        <video id="mainVideo" class="video-layer" muted playsinline preload="auto"></video>
+        <video id="smokeVideo" class="video-layer" muted playsinline loop preload="auto">
+            <source src="smoke.mp4" type="video/mp4">
+        </video>
+
+        <button class="fullscreen-btn" id="fullscreenBtn" title="Toggle Fullscreen">
+            <svg viewBox="0 0 24 24">
+                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="controls" id="controls">
+        <button class="btn" id="startBtn">🎤 Start Listening</button>
+        <button class="btn" id="stopBtn" disabled>⏹ Stop</button>
+    </div>
+
+    <div class="noise-meter" id="noiseMeter">
+        <span class="meter-label">Noise Level</span>
+        <div class="meter-bar-container">
+            <div class="threshold-marker" id="thresholdMarker" style="left: 35%;"></div>
+            <div class="meter-bar" id="meterBar"></div>
+        </div>
+        <div class="state-indicator quiet" id="stateIndicator">🌿 Quiet</div>
+    </div>
+
+    <div class="status" id="status">Press Start to begin the quiet game</div>
+
+    <div class="sensitivity-control">
+        <label for="sensitivitySlider">🎚️ Microphone Sensitivity</label>
+        <input type="range" id="sensitivitySlider" class="sensitivity-slider" 
+               min="5" max="50" value="20" step="1">
+        <span class="sensitivity-value" id="sensitivityValue">20x</span>
+    </div>
+
+    <div class="instructions">
+        <p>When you're quiet and calm, Link will visit the forest. 
+        If it gets too noisy, Link hides away and fog fills the screen. 
+        Breathe softly and watch Link appear! 🍃</p>
+        <p class="mobile-hint" style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.6;">
+            📱 Double-tap to exit fullscreen
+        </p>
+    </div>
+
+    <script>
+        // DOM Elements
+        const visualizerContainer = document.getElementById('visualizerContainer');
+        const mainVideo = document.getElementById('mainVideo');
+        const smokeVideo = document.getElementById('smokeVideo');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const controls = document.getElementById('controls');
+        const noiseMeter = document.getElementById('noiseMeter');
+        const meterBar = document.getElementById('meterBar');
+        const thresholdMarker = document.getElementById('thresholdMarker');
+        const stateIndicator = document.getElementById('stateIndicator');
+        const status = document.getElementById('status');
+        const sensitivitySlider = document.getElementById('sensitivitySlider');
+        const sensitivityValue = document.getElementById('sensitivityValue');
+
+        // Audio context and nodes
+        let audioContext = null;
+        let analyser = null;
+        let source = null;
+        let mediaStream = null;
+        let animationId = null;
+        let isRunning = false;
+
+        // Video pools
+        const linkVideos = [
+            'Link01.mp4', 'Link02.mp4', 'Link03.mp4', 
+            'Link04.mp4', 'Link05.mp4', 'Link06.mp4'
+        ];
+        const noLinkVideos = [
+            'Nolink01.mp4', 'Nolink02.mp4', 'Nolink03.mp4', 'Nolink04.mp4',
+            'Nolink05.mp4', 'Nolink06.mp4', 'Nolink07.mp4', 'Nolink08.mp4'
+        ];
+
+        // State
+        let currentCategory = null; // 'link' or 'nolink'
+        let lastPlayedIndex = { link: -1, nolink: -1 };
+        
+        // Noise threshold (0-1) - below this = quiet/Link, above = noisy/NoLink
+        const NOISE_THRESHOLD = 0.35;
+        
+        // Smoothing for noise level
+        let smoothedNoiseLevel = 0;
+        const NOISE_SMOOTHING = 0.15;
+
+        // Hysteresis to prevent rapid switching
+        let stableState = 'quiet';
+        let stateCounter = 0;
+        const STATE_CHANGE_FRAMES = 15; // ~0.25 seconds at 60fps
+
+        // FFT configuration
+        const FFT_SIZE = 1024;
+
+        // Get random video from pool (avoid immediate repeat)
+        function getRandomVideo(pool, category) {
+            let index;
+            do {
+                index = Math.floor(Math.random() * pool.length);
+            } while (index === lastPlayedIndex[category] && pool.length > 1);
+            
+            lastPlayedIndex[category] = index;
+            return pool[index];
+        }
+
+        // Track if we're in the middle of a fade transition
+        let isTransitioning = false;
+
+        // Play a video from the appropriate category (with optional fade)
+        function playVideoFromCategory(category, withFade = false) {
+            const pool = category === 'link' ? linkVideos : noLinkVideos;
+            const videoFile = getRandomVideo(pool, category);
+            
+            if (withFade && currentCategory !== null && currentCategory !== category) {
+                // Fade transition between categories
+                isTransitioning = true;
+                mainVideo.classList.add('fading');
+                
+                setTimeout(() => {
+                    currentCategory = category;
+                    mainVideo.src = videoFile;
+                    mainVideo.play().catch(err => console.log('Video play error:', err));
+                    
+                    // Fade back in
+                    setTimeout(() => {
+                        mainVideo.classList.remove('fading');
+                        isTransitioning = false;
+                    }, 50);
+                }, 600); // Match CSS transition duration
+            } else {
+                // No fade (same category or initial play)
+                currentCategory = category;
+                mainVideo.src = videoFile;
+                mainVideo.play().catch(err => console.log('Video play error:', err));
+            }
+        }
+
+        // Handle video ended - play another from same category (no fade within category)
+        function onVideoEnded() {
+            if (!isRunning || isTransitioning) return;
+            playVideoFromCategory(currentCategory, false);
+        }
+
+        // Initialize
+        function init() {
+            mainVideo.addEventListener('ended', onVideoEnded);
+            
+            // iOS requires user interaction before playing video
+            // Prepare videos for mobile playback
+            mainVideo.setAttribute('webkit-playsinline', 'true');
+            smokeVideo.setAttribute('webkit-playsinline', 'true');
+            
+            smokeVideo.play().catch(() => {});
+            
+            // Set threshold marker position
+            thresholdMarker.style.left = `${NOISE_THRESHOLD * 100}%`;
+        }
+        
+        // Check if device is mobile/touch
+        function isTouchDevice() {
+            return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        }
+
+        // Calculate overall noise level
+        function getNoiseLevel(dataArray) {
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            return sum / dataArray.length / 255; // Normalize to 0-1
+        }
+
+        // Update visuals based on noise level
+        function updateVisuals(noiseLevel) {
+            // Smooth the noise level
+            smoothedNoiseLevel = smoothedNoiseLevel * (1 - NOISE_SMOOTHING) + noiseLevel * NOISE_SMOOTHING;
+            
+            // Update meter
+            meterBar.style.width = `${smoothedNoiseLevel * 100}%`;
+            
+            // Determine state with hysteresis
+            const currentState = smoothedNoiseLevel < NOISE_THRESHOLD ? 'quiet' : 'loud';
+            
+            if (currentState !== stableState) {
+                stateCounter++;
+                if (stateCounter >= STATE_CHANGE_FRAMES) {
+                    stableState = currentState;
+                    stateCounter = 0;
+                    onStateChange(stableState);
+                }
+            } else {
+                stateCounter = 0;
+            }
+            
+            // Update smoke opacity based on noise level
+            // When quiet (below threshold): smoke fades out
+            // When loud (above threshold): smoke fades in
+            let smokeOpacity;
+            if (smoothedNoiseLevel < NOISE_THRESHOLD) {
+                // Map 0 to threshold → opacity 0 to 0 (no smoke when quiet)
+                // But show a little smoke as it approaches threshold
+                smokeOpacity = (smoothedNoiseLevel / NOISE_THRESHOLD) * 0.3;
+            } else {
+                // Map threshold to 1 → opacity 0.3 to 1
+                const loudness = (smoothedNoiseLevel - NOISE_THRESHOLD) / (1 - NOISE_THRESHOLD);
+                smokeOpacity = 0.3 + loudness * 0.7;
+            }
+            
+            smokeVideo.style.opacity = smokeOpacity;
+            
+            // Update state indicator
+            if (stableState === 'quiet') {
+                stateIndicator.textContent = '🌿 Quiet - Link is here!';
+                stateIndicator.className = 'state-indicator quiet';
+            } else {
+                stateIndicator.textContent = '🌫️ Too noisy - Link is hiding';
+                stateIndicator.className = 'state-indicator loud';
+            }
+        }
+
+        // Handle state change (quiet <-> loud)
+        function onStateChange(newState) {
+            console.log('State changed to:', newState);
+            
+            if (newState === 'quiet') {
+                // Switch to Link videos with fade
+                playVideoFromCategory('link', true);
+            } else {
+                // Switch to NoLink videos with fade
+                playVideoFromCategory('nolink', true);
+            }
+        }
+
+        // Main animation loop
+        function animate() {
+            if (!isRunning || !analyser) return;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Get overall noise level (with gain from slider)
+            const rawLevel = getNoiseLevel(dataArray);
+            const gain = parseFloat(sensitivitySlider.value);
+            const noiseLevel = Math.min(rawLevel * gain, 1);
+
+            updateVisuals(noiseLevel);
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Start listening
+        async function startListening() {
+            try {
+                setStatus('Requesting microphone access...', '');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+                
+                mediaStream = stream;
+
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = FFT_SIZE;
+                analyser.smoothingTimeConstant = 0.5;
+                analyser.minDecibels = -100;
+                analyser.maxDecibels = -10;
+
+                source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                // Start smoke video
+                smokeVideo.play().catch(() => {});
+                
+                // Start with appropriate category based on initial state
+                // Assume quiet to start
+                stableState = 'quiet';
+                playVideoFromCategory('link');
+
+                isRunning = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                setStatus('🎤 Listening... be quiet to see Link!', 'active');
+                animate();
+                
+            } catch (err) {
+                console.error('Microphone error:', err);
+                setStatus('Error: Could not access microphone - ' + err.message, 'error');
+            }
+        }
+
+        // Stop listening
+        function stopListening() {
+            isRunning = false;
+
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+
+            if (source) {
+                source.disconnect();
+                source = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            // Reset videos
+            mainVideo.pause();
+            mainVideo.src = '';
+            smokeVideo.style.opacity = 0;
+
+            // Reset meter
+            meterBar.style.width = '0%';
+            smoothedNoiseLevel = 0;
+            stateCounter = 0;
+            stableState = 'quiet';
+            stateIndicator.textContent = '🌿 Quiet';
+            stateIndicator.className = 'state-indicator quiet';
+
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+
+            setStatus('Press Start to begin the quiet game', '');
+        }
+
+        // Update status message
+        function setStatus(message, className) {
+            status.textContent = message;
+            status.className = 'status ' + className;
+        }
+
+        // Toggle fullscreen (with iOS fallback)
+        function toggleFullscreen() {
+            // Check for iOS which doesn't support Fullscreen API
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            
+            if (isIOS) {
+                // Use CSS-based fullscreen for iOS
+                visualizerContainer.classList.toggle('fullscreen');
+                if (visualizerContainer.classList.contains('fullscreen')) {
+                    document.body.style.overflow = 'hidden';
+                    controls.classList.add('fullscreen-controls');
+                    noiseMeter.style.display = 'none';
+                    document.querySelector('.instructions').style.display = 'none';
+                    document.querySelector('.sensitivity-control').style.display = 'none';
+                    document.querySelector('.header').style.display = 'none';
+                } else {
+                    document.body.style.overflow = '';
+                    controls.classList.remove('fullscreen-controls');
+                    noiseMeter.style.display = 'flex';
+                    document.querySelector('.instructions').style.display = 'block';
+                    document.querySelector('.sensitivity-control').style.display = 'flex';
+                    document.querySelector('.header').style.display = 'block';
+                }
+            } else {
+                // Standard Fullscreen API
+                if (!document.fullscreenElement) {
+                    visualizerContainer.requestFullscreen().catch(err => {
+                        console.error('Fullscreen error:', err);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // Handle fullscreen changes
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                visualizerContainer.classList.add('fullscreen');
+                controls.classList.add('fullscreen-controls');
+                noiseMeter.style.display = 'none';
+                document.querySelector('.instructions').style.display = 'none';
+                
+                controls.classList.add('visible');
+                setTimeout(() => {
+                    controls.classList.remove('visible');
+                }, 3000);
+            } else {
+                visualizerContainer.classList.remove('fullscreen');
+                controls.classList.remove('fullscreen-controls');
+                noiseMeter.style.display = 'flex';
+                document.querySelector('.instructions').style.display = 'block';
+            }
+        });
+
+        // Show controls on mouse move in fullscreen
+        let hideControlsTimeout;
+        document.addEventListener('mousemove', () => {
+            if (document.fullscreenElement) {
+                controls.classList.add('visible');
+                clearTimeout(hideControlsTimeout);
+                hideControlsTimeout = setTimeout(() => {
+                    controls.classList.remove('visible');
+                }, 2000);
+            }
+        });
+
+        // Event listeners
+        startBtn.addEventListener('click', startListening);
+        stopBtn.addEventListener('click', stopListening);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        
+        // Sensitivity slider
+        sensitivitySlider.addEventListener('input', () => {
+            sensitivityValue.textContent = sensitivitySlider.value + 'x';
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            }
+            if (e.key === 'Escape' && document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+        });
+
+        // Double-tap to exit fullscreen on mobile (iOS fallback)
+        let lastTap = 0;
+        visualizerContainer.addEventListener('touchend', (e) => {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 300 && tapLength > 0) {
+                // Double tap detected
+                if (visualizerContainer.classList.contains('fullscreen')) {
+                    toggleFullscreen();
+                }
+            }
+            lastTap = currentTime;
+        });
+
+        // Prevent pull-to-refresh on mobile when in fullscreen
+        document.addEventListener('touchmove', (e) => {
+            if (visualizerContainer.classList.contains('fullscreen')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
+

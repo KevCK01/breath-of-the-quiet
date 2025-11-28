@@ -96,18 +96,18 @@
             object-fit: cover;
         }
 
-        #mainVideo {
+        #mainVideo1, #mainVideo2 {
             z-index: 1;
-            opacity: 1;
-            transition: opacity 0.6s ease-in-out;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
         }
 
-        #mainVideo.fading {
-            opacity: 0;
+        #mainVideo1.active, #mainVideo2.active {
+            opacity: 1;
         }
 
         #smokeVideo {
-            z-index: 2;
+            z-index: 3;
             mix-blend-mode: screen;
             opacity: 0;
             pointer-events: none;
@@ -524,7 +524,8 @@
     </div>
 
     <div class="visualizer-container" id="visualizerContainer">
-        <video id="mainVideo" class="video-layer" muted playsinline preload="auto"></video>
+        <video id="mainVideo1" class="video-layer" muted playsinline preload="auto"></video>
+        <video id="mainVideo2" class="video-layer" muted playsinline preload="auto"></video>
         <video id="smokeVideo" class="video-layer" muted playsinline loop preload="auto">
             <source src="smoke.mp4" type="video/mp4">
         </video>
@@ -555,8 +556,8 @@
     <div class="sensitivity-control">
         <label for="sensitivitySlider">🎚️ Microphone Sensitivity</label>
         <input type="range" id="sensitivitySlider" class="sensitivity-slider" 
-               min="5" max="50" value="20" step="1">
-        <span class="sensitivity-value" id="sensitivityValue">20x</span>
+               min="0.5" max="100" value="20" step="0.5">
+        <span class="sensitivity-value" id="sensitivityValue">20</span>
     </div>
 
     <div class="instructions">
@@ -571,7 +572,8 @@
     <script>
         // DOM Elements
         const visualizerContainer = document.getElementById('visualizerContainer');
-        const mainVideo = document.getElementById('mainVideo');
+        const mainVideo1 = document.getElementById('mainVideo1');
+        const mainVideo2 = document.getElementById('mainVideo2');
         const smokeVideo = document.getElementById('smokeVideo');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
@@ -605,7 +607,9 @@
 
         // State
         let currentCategory = null; // 'link' or 'nolink'
-        let lastPlayedIndex = { link: -1, nolink: -1 };
+        let currentVideoIndex = { link: 0, nolink: 0 }; // Track current position in each playlist
+        let activeVideoElement = mainVideo1; // Track which video element is currently active
+        let inactiveVideoElement = mainVideo2;
         
         // Noise threshold (0-1) - below this = quiet/Link, above = noisy/NoLink
         const NOISE_THRESHOLD = 0.35;
@@ -619,65 +623,184 @@
         let stateCounter = 0;
         const STATE_CHANGE_FRAMES = 15; // ~0.25 seconds at 60fps
 
+        // Track continuous quiet time for Link video delay
+        let quietStartTime = null;
+        const LINK_DELAY_MS = 5000; // 5 seconds of quiet before Link appears
+        let linkVideosTriggered = false; // Track if we've already switched to Link
+
         // FFT configuration
         const FFT_SIZE = 1024;
 
-        // Get random video from pool (avoid immediate repeat)
-        function getRandomVideo(pool, category) {
-            let index;
-            do {
-                index = Math.floor(Math.random() * pool.length);
-            } while (index === lastPlayedIndex[category] && pool.length > 1);
+        // Get next video from pool (plays in order, loops back to start)
+        function getNextVideo(pool, category) {
+            const index = currentVideoIndex[category];
+            const videoFile = pool[index];
             
-            lastPlayedIndex[category] = index;
-            return pool[index];
+            // Advance to next video (loop back to 0 when reaching the end)
+            currentVideoIndex[category] = (index + 1) % pool.length;
+            
+            console.log(`Playing ${category} video ${index + 1}/${pool.length}: ${videoFile}`);
+            return videoFile;
         }
 
         // Track if we're in the middle of a fade transition
         let isTransitioning = false;
+        let crossfadeHandled = false; // Prevent double-handling of crossfade
 
-        // Play a video from the appropriate category (with optional fade)
-        function playVideoFromCategory(category, withFade = false) {
+        // Play a video from the appropriate category (with optional crossfade)
+        function playVideoFromCategory(category, withCrossfade = false) {
             const pool = category === 'link' ? linkVideos : noLinkVideos;
-            const videoFile = getRandomVideo(pool, category);
+            const videoFile = getNextVideo(pool, category);
             
-            if (withFade && currentCategory !== null && currentCategory !== category) {
-                // Fade transition between categories
+            if (withCrossfade && currentCategory !== null && currentCategory !== category) {
+                // Crossfade transition between categories
                 isTransitioning = true;
-                mainVideo.classList.add('fading');
+                crossfadeHandled = false;
+                console.log('Starting crossfade to', category, 'with video:', videoFile);
                 
-                setTimeout(() => {
-                    currentCategory = category;
-                    mainVideo.src = videoFile;
-                    mainVideo.play().catch(err => console.log('Video play error:', err));
-                    
-                    // Fade back in
-                    setTimeout(() => {
-                        mainVideo.classList.remove('fading');
+                // Capture current references at the time of this call
+                const newVideoElement = inactiveVideoElement;
+                const oldVideoElement = activeVideoElement;
+                
+                // Clear any old handlers
+                newVideoElement.onloadeddata = null;
+                newVideoElement.onerror = null;
+                
+                // Load new video
+                newVideoElement.src = videoFile;
+                newVideoElement.load();
+                
+                // Timeout fallback in case canplaythrough never fires
+                const crossfadeTimeout = setTimeout(() => {
+                    if (isTransitioning && !crossfadeHandled) {
+                        console.log('Crossfade timeout - forcing completion');
+                        crossfadeHandled = true;
                         isTransitioning = false;
-                    }, 50);
-                }, 600); // Match CSS transition duration
+                        currentCategory = category;
+                        // Just play on the new element directly
+                        newVideoElement.classList.add('active');
+                        oldVideoElement.classList.remove('active');
+                        newVideoElement.play().catch(err => console.log('Timeout fallback error:', err));
+                        activeVideoElement = newVideoElement;
+                        inactiveVideoElement = oldVideoElement;
+                        // Pause old video
+                        setTimeout(() => {
+                            oldVideoElement.pause();
+                            oldVideoElement.src = '';
+                        }, 100);
+                    }
+                }, 3000);
+                
+                // Use canplaythrough for more reliable loading detection
+                const handleCanPlay = () => {
+                    // Prevent double-handling
+                    if (crossfadeHandled) {
+                        console.log('Crossfade already handled, ignoring');
+                        return;
+                    }
+                    crossfadeHandled = true;
+                    clearTimeout(crossfadeTimeout);
+                    
+                    console.log('Crossfade video ready, starting transition');
+                    currentCategory = category;
+                    newVideoElement.play().catch(err => console.log('Video play error:', err));
+                    
+                    // Crossfade: fade out old, fade in new
+                    oldVideoElement.classList.remove('active');
+                    newVideoElement.classList.add('active');
+                    
+                    // Update references BEFORE stopping old video
+                    activeVideoElement = newVideoElement;
+                    inactiveVideoElement = oldVideoElement;
+                    
+                    // Stop the old video after crossfade completes
+                    setTimeout(() => {
+                        oldVideoElement.pause();
+                        oldVideoElement.src = '';
+                    }, 900);
+                    
+                    isTransitioning = false;
+                    console.log('Crossfade complete, now active:', activeVideoElement.id);
+                };
+                
+                // Use addEventListener with once:true to prevent multiple fires
+                newVideoElement.addEventListener('canplaythrough', handleCanPlay, { once: true });
+                
+                // Handle load errors
+                newVideoElement.onerror = () => {
+                    if (crossfadeHandled) return;
+                    crossfadeHandled = true;
+                    clearTimeout(crossfadeTimeout);
+                    console.log('Video load error during crossfade, falling back');
+                    isTransitioning = false;
+                    currentCategory = category;
+                    oldVideoElement.src = videoFile;
+                    oldVideoElement.play().catch(err => console.log('Fallback play error:', err));
+                };
             } else {
-                // No fade (same category or initial play)
+                // No crossfade (same category or initial play)
                 currentCategory = category;
-                mainVideo.src = videoFile;
-                mainVideo.play().catch(err => console.log('Video play error:', err));
+                activeVideoElement.src = videoFile;
+                activeVideoElement.classList.add('active');
+                
+                // Ensure video plays - retry if needed
+                const playPromise = activeVideoElement.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.log('Video play error, retrying:', err);
+                        setTimeout(() => {
+                            activeVideoElement.play().catch(e => console.log('Retry also failed:', e));
+                        }, 100);
+                    });
+                }
             }
         }
 
-        // Handle video ended - play another from same category (no fade within category)
-        function onVideoEnded() {
-            if (!isRunning || isTransitioning) return;
-            playVideoFromCategory(currentCategory, false);
+        // Handle video ended - play another video based on the TRUE intended state
+        function onVideoEnded(event) {
+            console.log('Video ended event fired', {
+                isRunning,
+                isTransitioning,
+                eventTarget: event.target.id,
+                activeElement: activeVideoElement.id,
+                linkVideosTriggered,
+                currentCategory
+            });
+            
+            if (!isRunning) {
+                console.log('Not running, ignoring ended event');
+                return;
+            }
+            
+            if (isTransitioning) {
+                console.log('Transitioning, ignoring ended event');
+                return;
+            }
+            
+            // CRITICAL: Only respond to 'ended' events from the ACTIVE video element
+            // The inactive video (from a crossfade) might also end - ignore those
+            if (event.target !== activeVideoElement) {
+                console.log('Ignoring ended event from inactive video');
+                return;
+            }
+            
+            // Use linkVideosTriggered as the source of truth for what should play next
+            const intendedCategory = linkVideosTriggered ? 'link' : 'nolink';
+            console.log('Playing next video from category:', intendedCategory);
+            
+            // Always play the intended category - the active video just ended so we need a new one
+            playVideoFromCategory(intendedCategory, false);
         }
 
         // Initialize
         function init() {
-            mainVideo.addEventListener('ended', onVideoEnded);
+            mainVideo1.addEventListener('ended', onVideoEnded);
+            mainVideo2.addEventListener('ended', onVideoEnded);
             
             // iOS requires user interaction before playing video
             // Prepare videos for mobile playback
-            mainVideo.setAttribute('webkit-playsinline', 'true');
+            mainVideo1.setAttribute('webkit-playsinline', 'true');
+            mainVideo2.setAttribute('webkit-playsinline', 'true');
             smokeVideo.setAttribute('webkit-playsinline', 'true');
             
             smokeVideo.play().catch(() => {});
@@ -738,27 +861,56 @@
             
             smokeVideo.style.opacity = smokeOpacity;
             
-            // Update state indicator
-            if (stableState === 'quiet') {
-                stateIndicator.textContent = '🌿 Quiet - Link is here!';
-                stateIndicator.className = 'state-indicator quiet';
+            // Direct quiet time tracking based on noise level (not stableState)
+            const isCurrentlyQuiet = smoothedNoiseLevel < NOISE_THRESHOLD;
+            
+            if (isCurrentlyQuiet) {
+                // Start or continue quiet timer
+                if (!quietStartTime) {
+                    quietStartTime = Date.now();
+                    console.log('Quiet detected - starting countdown');
+                }
+                
+                const quietDuration = Date.now() - quietStartTime;
+                const secondsRemaining = Math.max(0, Math.ceil((LINK_DELAY_MS - quietDuration) / 1000));
+                
+                if (quietDuration >= LINK_DELAY_MS && !linkVideosTriggered) {
+                    // 5 seconds of quiet achieved! Switch to Link videos
+                    console.log('5 seconds of quiet achieved! Showing Link videos');
+                    linkVideosTriggered = true;
+                    playVideoFromCategory('link', true);
+                    stateIndicator.textContent = '🌿 Link is here!';
+                    stateIndicator.className = 'state-indicator quiet';
+                } else if (linkVideosTriggered) {
+                    // Already showing Link videos
+                    stateIndicator.textContent = '🌿 Link is here!';
+                    stateIndicator.className = 'state-indicator quiet';
+                } else {
+                    // Show countdown: 5, 4, 3, 2, 1
+                    stateIndicator.textContent = `🌿 Quiet... ${secondsRemaining}`;
+                    stateIndicator.className = 'state-indicator quiet';
+                }
             } else {
-                stateIndicator.textContent = '🌫️ Too noisy - Link is hiding';
+                // It's loud - reset everything immediately
+                if (quietStartTime !== null || linkVideosTriggered) {
+                    console.log('Noise detected - resetting countdown');
+                    quietStartTime = null;
+                    
+                    // If Link was showing, switch back to Nolink immediately
+                    if (linkVideosTriggered && currentCategory === 'link') {
+                        playVideoFromCategory('nolink', true);
+                    }
+                    linkVideosTriggered = false;
+                }
+                stateIndicator.textContent = '🌫️ Too noisy';
                 stateIndicator.className = 'state-indicator loud';
             }
         }
 
         // Handle state change (quiet <-> loud)
+        // Note: Link video logic is now handled directly in updateVisuals
         function onStateChange(newState) {
             console.log('State changed to:', newState);
-            
-            if (newState === 'quiet') {
-                // Switch to Link videos with fade
-                playVideoFromCategory('link', true);
-            } else {
-                // Switch to NoLink videos with fade
-                playVideoFromCategory('nolink', true);
-            }
         }
 
         // Main animation loop
@@ -813,8 +965,11 @@
                 
                 // Start with appropriate category based on initial state
                 // Assume quiet to start
-                stableState = 'quiet';
-                playVideoFromCategory('link');
+                stableState = 'loud';
+                currentCategory = 'nolink';
+                quietStartTime = null;
+                linkVideosTriggered = false;
+                playVideoFromCategory('nolink');
 
                 isRunning = true;
                 startBtn.disabled = true;
@@ -832,6 +987,13 @@
         // Stop listening
         function stopListening() {
             isRunning = false;
+            
+            // Reset quiet tracking
+            quietStartTime = null;
+            linkVideosTriggered = false;
+            
+            // Reset video playlists to start from beginning next time
+            currentVideoIndex = { link: 0, nolink: 0 };
 
             if (animationId) {
                 cancelAnimationFrame(animationId);
@@ -854,9 +1016,17 @@
             }
 
             // Reset videos
-            mainVideo.pause();
-            mainVideo.src = '';
+            mainVideo1.pause();
+            mainVideo1.src = '';
+            mainVideo1.classList.remove('active');
+            mainVideo2.pause();
+            mainVideo2.src = '';
+            mainVideo2.classList.remove('active');
             smokeVideo.style.opacity = 0;
+            
+            // Reset active video tracking
+            activeVideoElement = mainVideo1;
+            inactiveVideoElement = mainVideo2;
 
             // Reset meter
             meterBar.style.width = '0%';
@@ -950,9 +1120,15 @@
         stopBtn.addEventListener('click', stopListening);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         
-        // Sensitivity slider
+        // Sensitivity slider - map actual value (0.5-100) to display (1-100)
+        function getDisplaySensitivity(actualValue) {
+            // Linear map: 0.5 → 1, 100 → 100
+            return Math.round(1 + (actualValue - 0.5) * (99 / 99.5));
+        }
+        
         sensitivitySlider.addEventListener('input', () => {
-            sensitivityValue.textContent = sensitivitySlider.value + 'x';
+            const val = parseFloat(sensitivitySlider.value);
+            sensitivityValue.textContent = getDisplaySensitivity(val);
         });
 
         // Keyboard shortcuts

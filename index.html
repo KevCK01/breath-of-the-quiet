@@ -655,9 +655,6 @@
         </button>
     </div>
 
-    <div class="controls" id="controls">
-        <button class="btn" id="stopBtn">⏹ Stop</button>
-    </div>
 
     <div class="noise-meter" id="noiseMeter">
         <span class="meter-label">Noise Level</span>
@@ -694,9 +691,7 @@
         const smokeVideo = document.getElementById('smokeVideo');
         const welcomeModal = document.getElementById('welcomeModal');
         const modalStartBtn = document.getElementById('modalStartBtn');
-        const stopBtn = document.getElementById('stopBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const controls = document.getElementById('controls');
         const noiseMeter = document.getElementById('noiseMeter');
         const meterBar = document.getElementById('meterBar');
         const thresholdMarker = document.getElementById('thresholdMarker');
@@ -1177,14 +1172,12 @@
                 visualizerContainer.classList.toggle('fullscreen');
                 if (visualizerContainer.classList.contains('fullscreen')) {
                     document.body.style.overflow = 'hidden';
-                    controls.classList.add('fullscreen-controls');
                     noiseMeter.style.display = 'none';
                     document.querySelector('.instructions').style.display = 'none';
                     document.querySelector('.sensitivity-control').style.display = 'none';
                     document.querySelector('.header').style.display = 'none';
                 } else {
                     document.body.style.overflow = '';
-                    controls.classList.remove('fullscreen-controls');
                     noiseMeter.style.display = 'flex';
                     document.querySelector('.instructions').style.display = 'block';
                     document.querySelector('.sensitivity-control').style.display = 'flex';
@@ -1206,37 +1199,17 @@
         document.addEventListener('fullscreenchange', () => {
             if (document.fullscreenElement) {
                 visualizerContainer.classList.add('fullscreen');
-                controls.classList.add('fullscreen-controls');
                 noiseMeter.style.display = 'none';
                 document.querySelector('.instructions').style.display = 'none';
-                
-                controls.classList.add('visible');
-                setTimeout(() => {
-                    controls.classList.remove('visible');
-                }, 3000);
             } else {
                 visualizerContainer.classList.remove('fullscreen');
-                controls.classList.remove('fullscreen-controls');
                 noiseMeter.style.display = 'flex';
                 document.querySelector('.instructions').style.display = 'block';
             }
         });
 
-        // Show controls on mouse move in fullscreen
-        let hideControlsTimeout;
-        document.addEventListener('mousemove', () => {
-            if (document.fullscreenElement) {
-                controls.classList.add('visible');
-                clearTimeout(hideControlsTimeout);
-                hideControlsTimeout = setTimeout(() => {
-                    controls.classList.remove('visible');
-                }, 2000);
-            }
-        });
-
         // Event listeners
         modalStartBtn.addEventListener('click', startListening);
-        stopBtn.addEventListener('click', stopListening);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         
         // Sensitivity slider - map actual value (0.5-100) to display (1-100)

@@ -515,9 +515,127 @@
                 opacity: 0.7;
             }
         }
+
+        /* Welcome Modal */
+        .welcome-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .welcome-modal.hidden {
+            display: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .welcome-content {
+            text-align: center;
+            padding: 3rem;
+            max-width: 500px;
+            background: var(--glass);
+            border-radius: 16px;
+            border: 2px solid rgba(201, 162, 39, 0.3);
+            box-shadow: 
+                0 0 60px rgba(201, 162, 39, 0.2),
+                0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .welcome-content h1 {
+            font-size: 2.2rem;
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            color: var(--accent-gold);
+            text-shadow: 0 0 20px rgba(201, 162, 39, 0.4);
+            margin-bottom: 1rem;
+        }
+
+        .welcome-content p {
+            font-size: 1.1rem;
+            color: var(--text-light);
+            opacity: 0.9;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-content .start-btn {
+            font-family: 'Fondamento', cursive;
+            font-size: 1.3rem;
+            padding: 1rem 2.5rem;
+            border: 2px solid var(--accent-gold);
+            background: var(--accent-gold);
+            color: var(--bg-forest);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(201, 162, 39, 0.4);
+        }
+
+        .welcome-content .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(201, 162, 39, 0.6);
+        }
+
+        .welcome-content .start-btn:active {
+            transform: scale(0.98);
+        }
+
+        @media (max-width: 768px) {
+            .welcome-content {
+                margin: 1rem;
+                padding: 2rem;
+            }
+
+            .welcome-content h1 {
+                font-size: 1.6rem;
+            }
+
+            .welcome-content p {
+                font-size: 1rem;
+            }
+
+            .welcome-content .start-btn {
+                font-size: 1.1rem;
+                padding: 0.9rem 2rem;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Welcome Modal -->
+    <div class="welcome-modal" id="welcomeModal">
+        <div class="welcome-content">
+            <h1>🍃 Breath of the Quiet</h1>
+            <p>Be still and calm for 5 seconds, and Link will visit the forest. 
+            If it gets too noisy, Link hides away and fog fills the screen.</p>
+            <button class="start-btn" id="modalStartBtn">🎤 Start Listening</button>
+        </div>
+    </div>
+
     <div class="header">
         <h1>Zelda: Breath of the Quiet</h1>
         <p class="subtitle">Be still and Link will appear...</p>
@@ -538,8 +656,7 @@
     </div>
 
     <div class="controls" id="controls">
-        <button class="btn" id="startBtn">🎤 Start Listening</button>
-        <button class="btn" id="stopBtn" disabled>⏹ Stop</button>
+        <button class="btn" id="stopBtn">⏹ Stop</button>
     </div>
 
     <div class="noise-meter" id="noiseMeter">
@@ -575,7 +692,8 @@
         const mainVideo1 = document.getElementById('mainVideo1');
         const mainVideo2 = document.getElementById('mainVideo2');
         const smokeVideo = document.getElementById('smokeVideo');
-        const startBtn = document.getElementById('startBtn');
+        const welcomeModal = document.getElementById('welcomeModal');
+        const modalStartBtn = document.getElementById('modalStartBtn');
         const stopBtn = document.getElementById('stopBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         const controls = document.getElementById('controls');
@@ -972,8 +1090,9 @@
                 playVideoFromCategory('nolink');
 
                 isRunning = true;
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
+                
+                // Hide the welcome modal
+                welcomeModal.classList.add('hidden');
 
                 setStatus('🎤 Listening... be quiet to see Link!', 'active');
                 animate();
@@ -1036,8 +1155,8 @@
             stateIndicator.textContent = '🌿 Quiet';
             stateIndicator.className = 'state-indicator quiet';
 
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
+            // Show the welcome modal again
+            welcomeModal.classList.remove('hidden');
 
             setStatus('Press Start to begin the quiet game', '');
         }
@@ -1116,7 +1235,7 @@
         });
 
         // Event listeners
-        startBtn.addEventListener('click', startListening);
+        modalStartBtn.addEventListener('click', startListening);
         stopBtn.addEventListener('click', stopListening);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         
